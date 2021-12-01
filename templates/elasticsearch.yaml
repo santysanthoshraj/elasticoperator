@@ -1,0 +1,140 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: {{ .Values.labels.app }}
+spec:
+  version: {{ .Values.spec.version }}
+  secureSettings:
+  - secretName: {{ .Values.spec.secureSettings.secretName }} 
+#{{ .Values.spec.secureSettings.secretName | indent 6 }}  
+  #image: your/custom/image:tag - to install plugin for initContainers
+  # transport:
+  #  service:
+  #    metadata:
+  #      labels:
+  #        my-custom: elasticsearch
+  #    spec:
+  #      type: LoadBalancer
+  
+  http:
+    service:
+      metadata:
+        labels:
+          my-custom: elasticsearch
+      spec:
+        type: LoadBalancer
+        selector:
+          elasticsearch.k8s.elastic.co/cluster-name: "elasticsearch"
+          elasticsearch.k8s.elastic.co/node-master: "false"
+          elasticsearch.k8s.elastic.co/node-data: "true"
+          elasticsearch.k8s.elastic.co/node-ingest: "false"
+          elasticsearch.k8s.elastic.co/node-ml: "false"
+          elasticsearch.k8s.elastic.co/node-transform: "false"
+  volumeClaimDeletePolicy: {{ .Values.spec.volumeClaimDeletePolicy}}
+  nodeSets:
+  - name: {{ .Values.master.name }}
+    count: {{ .Values.master.count }}
+    config:
+{{ toYaml .Values.master.config | indent 6 }}
+    podTemplate:
+      spec:
+        tolerations: 
+{{ toYaml .Values.master.spec.tolerations | indent 10 }}
+        nodeSelector:
+{{ toYaml .Values.master.spec.nodeSelector | indent 10 }}
+        initContainers:
+        - name: sysctl
+          securityContext:
+            privileged: true
+          command: ['sh', '-c', 'sysctl -w vm.max_map_count=262144']   
+        initContainers:
+        - name: install-plugins
+          command:
+          - sh
+          - -c
+          - |
+            bin/elasticsearch-plugin install --batch repository-gcs
+        containers:
+        - name: {{ .Values.labels.app }}
+          resources:
+          {{- toYaml .Values.master.spec.resources | nindent 12 }}
+          env:
+{{ toYaml .Values.master.spec.env | indent 12 }} 
+    volumeClaimTemplates:
+    - metadata:
+        name: {{ .Values.labels.app }}-data
+      spec:
+{{ toYaml .Values.master.volumeClaimTemplates | indent 8 }}    
+  - name: {{ .Values.data.name }}
+    count: {{ .Values.data.count }}
+    config:
+{{ toYaml .Values.data.config | indent 6 }}
+    podTemplate:
+      spec:
+        tolerations: 
+{{ toYaml .Values.data.spec.tolerations | indent 10 }}
+        nodeSelector:
+{{ toYaml .Values.data.spec.nodeSelector | indent 10 }}  
+        securityContext:
+          fsGroup: 1001
+          runAsUser: 1001  
+        initContainers:
+        - name: sysctl
+          securityContext:
+            privileged: true
+          command: ['sh', '-c', 'sysctl -w vm.max_map_count=262144'] 
+        initContainers:
+        - name: install-plugins
+          securityContext:
+            privileged: true
+          command:
+          - sh
+          - -c
+          - |
+            bin/elasticsearch-plugin install --batch repository-gcs      
+        containers:
+        - name: {{ .Values.labels.app }}
+          resources:
+{{ toYaml .Values.data.spec.resources | indent 12 }}
+          env:
+{{ toYaml .Values.data.spec.env | indent 12 }}
+    volumeClaimTemplates:
+    - metadata:
+        name: {{ .Values.labels.app }}-data
+      spec:
+{{ toYaml .Values.data.volumeClaimTemplates | indent 8 }}
+  - name: {{ .Values.coordinating.name }}
+    count: {{ .Values.coordinating.count }}
+    config:
+{{ toYaml .Values.coordinating.config | indent 6 }}
+    podTemplate:
+      spec:
+        tolerations: 
+{{ toYaml .Values.coordinating.spec.tolerations | indent 10 }}
+        nodeSelector:
+{{ toYaml .Values.coordinating.spec.nodeSelector | indent 10 }}  
+        securityContext:
+          fsGroup: 1001
+          runAsUser: 1001    
+        initContainers:
+        - name: sysctl
+          securityContext:
+            privileged: true
+          command: ['sh', '-c', 'sysctl -w vm.max_map_count=262144'] 
+        initContainers:
+        - name: install-plugins
+          command:
+          - sh
+          - -c
+          - |
+           bin/elasticsearch-plugin install --batch repository-gcs
+        containers:
+        - name: {{ .Values.labels.app }}
+          resources:
+{{ toYaml .Values.coordinating.spec.resources | indent 12 }}
+          env:
+{{ toYaml .Values.coordinating.spec.env | indent 12 }}
+          #- name: PRE_STOP_MAX_WAIT_SECONDS
+          #  value: "10"
+          #- name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
+          #  value: "5"
