@@ -1,0 +1,98 @@
+labels:
+  app: elasticsearch
+  name: elasticsearch
+
+spec:
+  version: 7.13.1
+  secureSettings:
+    secretName: gcs-credentials
+  volumeClaimDeletePolicy: DeleteOnScaledownOnly
+
+master:
+  name: masters
+  count: 2
+  config:
+    node.roles: ["master"]
+    node.store.allow_mmap: false
+  spec:
+    tolerations: 
+    - key: "logging"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    nodeSelector: 
+      logging: "true"
+    resources:  
+      requests:
+        memory: 3G
+        cpu: 1
+      limits:
+        memory: 3G
+        cpu: 1
+    env:
+    - name: ES_JAVA_OPTS
+      value: "-Xms2g -Xmx2g" 
+  volumeClaimTemplates:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
+    storageClassName: standard
+
+data:
+  name: data
+  count: 4
+  config:
+    node.roles: ["data"]
+    node.store.allow_mmap: false
+  spec:
+    tolerations: 
+    - key: "logging"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    nodeSelector:
+      logging: "true" 
+    resources:
+      requests:
+        memory: 4G
+        cpu: 1
+      limits:
+        memory: 4G
+        cpu: 1
+    env:
+    - name: ES_JAVA_OPTS
+      value: "-Xms3g -Xmx3g"
+  volumeClaimTemplates:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 250Gi
+    storageClassName: standard
+
+coordinating:
+  name: coordinating
+  count: 2
+  config:
+    node.roles: []
+    node.store.allow_mmap: false
+  spec:
+    tolerations:
+    - key: "logging"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    nodeSelector:
+      logging: "true"
+    resources:
+      requests:
+        memory: 3G
+        cpu: 1
+      limits:
+        memory: 3G
+        cpu: 1
+    env:
+    - name: ES_JAVA_OPTS
+      value: "-Xms2g -Xmx2g"
